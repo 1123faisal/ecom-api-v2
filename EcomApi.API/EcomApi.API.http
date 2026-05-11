@@ -1,6 +1,159 @@
-@EcomApi.API_HostAddress = http://localhost:5058
+@baseUrl = http://localhost:5058
+@token = YOUR_JWT_TOKEN_HERE
 
-GET {{EcomApi.API_HostAddress}}/weatherforecast/
+### ── AUTH ────────────────────────────────────────────
+
+# Register
+POST {{baseUrl}}/api/auth/register
+Content-Type: application/json
+
+{
+  "username": "john",
+  "email": "john@example.com",
+  "password": "Password123!"
+}
+
+###
+
+# Login
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "john",
+  "password": "Password123!"
+}
+
+### ── CATEGORIES ──────────────────────────────────────
+
+# Get all categories
+GET {{baseUrl}}/api/categories
 Accept: application/json
 
 ###
+
+# Get category by ID
+GET {{baseUrl}}/api/categories/1
+Accept: application/json
+
+###
+
+# Create category (Admin)
+POST {{baseUrl}}/api/categories
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Electronics",
+  "description": "Electronic devices and accessories"
+}
+
+###
+
+# Update category (Admin)
+PUT {{baseUrl}}/api/categories/1
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Electronics",
+  "description": "Updated description"
+}
+
+###
+
+# Delete category (Admin)
+DELETE {{baseUrl}}/api/categories/1
+Authorization: Bearer {{token}}
+
+### ── PRODUCTS ─────────────────────────────────────────
+
+# Get all products
+GET {{baseUrl}}/api/products
+Accept: application/json
+
+###
+
+# Get product by ID
+GET {{baseUrl}}/api/products/1
+Accept: application/json
+
+###
+
+# Create product (Admin)
+POST {{baseUrl}}/api/products
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Laptop Pro",
+  "description": "High-performance laptop",
+  "price": 1299.99,
+  "stock": 50,
+  "categoryId": 1
+}
+
+###
+
+# Update product (Admin)
+PUT {{baseUrl}}/api/products/1
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Laptop Pro",
+  "description": "Updated description",
+  "price": 1199.99,
+  "stock": 45,
+  "categoryId": 1
+}
+
+###
+
+# Delete product (Admin)
+DELETE {{baseUrl}}/api/products/1
+Authorization: Bearer {{token}}
+
+### ── ORDERS ───────────────────────────────────────────
+
+# Get all orders (Admin)
+GET {{baseUrl}}/api/orders
+Authorization: Bearer {{token}}
+
+###
+
+# Get my orders
+GET {{baseUrl}}/api/orders/my
+Authorization: Bearer {{token}}
+
+###
+
+# Get order by ID
+GET {{baseUrl}}/api/orders/1
+Authorization: Bearer {{token}}
+
+###
+
+# Create order
+POST {{baseUrl}}/api/orders
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "items": [
+    { "productId": 1, "quantity": 2 },
+    { "productId": 2, "quantity": 1 }
+  ]
+}
+
+###
+
+# Update order status (Admin)
+PUT {{baseUrl}}/api/orders/1/status
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "status": "Shipped"
+}
+

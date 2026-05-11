@@ -37,7 +37,7 @@ public class OrderRepository : IOrderRepository
             .Orders.Include(o => o.User)
             .Include(o => o.OrderItems)
                 .ThenInclude(oi => oi.Product)
-            .FirstOrDefaultAsync();
+            .FirstOrDefaultAsync(o => o.Id == id);
     }
 
     public async Task<List<Order>> GetByUserIdAsync(int userId)
