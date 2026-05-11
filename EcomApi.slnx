@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="EcomApi.API/EcomApi.API.csproj" />
+  <Project Path="EcomApi.Application/EcomApi.Application.csproj" />
+  <Project Path="EcomApi.Domain/EcomApi.Domain.csproj" />
+  <Project Path="EcomApi.Infrastructure/EcomApi.Infrastructure.csproj" />
+</Solution>

@@ -1,0 +1,54 @@
+version: "3.8"
+
+services:
+  api:
+    build: ./EcomApi.API
+    ports:
+      - "8080:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:8080
+      - ConnectionStrings__DefaultConnection=Host=db;Port=5432;Database=ecommercedb;Username=admin;Password=password123
+      - ConnectionStrings__Redis=redis:6379
+      - Jwt__Key=ThisIsMySuperSecretKeyThatIsLongEnough123!
+      - Jwt__Issuer=EcomApi
+      - Jwt__Audience=EcomApiUsers
+      - Jwt__ExpiryHours=24
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  db:
+    image: postgres
+    environment:
+      - POSTGRES_PASSWORD=password123
+      - POSTGRES_USER=admin
+      - POSTGRES_DB=ecommercedb
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d ecommercedb"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+  redis_data:
