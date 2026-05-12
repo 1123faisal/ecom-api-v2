@@ -6,6 +6,7 @@ using EcomApi.Infrastructure.Data;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -13,7 +14,45 @@ var builder = WebApplication.CreateBuilder(args);
 // Services
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddOpenApi();
+builder.Services.AddOpenApi(options =>
+{
+    options.AddDocumentTransformer(
+        (doc, ctx, ct) =>
+        {
+            doc.Components ??= new OpenApiComponents();
+            doc.Components.SecuritySchemes ??= new Dictionary<string, IOpenApiSecurityScheme>();
+            doc.Components.SecuritySchemes["Bearer"] = new OpenApiSecurityScheme
+            {
+                Type = SecuritySchemeType.Http,
+                Scheme = "bearer",
+                In = ParameterLocation.Header,
+                BearerFormat = "JWT",
+                Description = "Enter Your JWT Token Below.",
+            };
+            return Task.CompletedTask;
+        }
+    );
+
+    options.AddOperationTransformer(
+        (op, ctx, ct) =>
+        {
+            var hasAuthorize = ctx
+                .Description.ActionDescriptor.EndpointMetadata.OfType<Microsoft.AspNetCore.Authorization.AuthorizeAttribute>()
+                .Any();
+            if (hasAuthorize)
+            {
+                op.Security ??= [];
+                op.Security.Add(
+                    new OpenApiSecurityRequirement
+                    {
+                        [new OpenApiSecuritySchemeReference("Bearer")] = [],
+                    }
+                );
+            }
+            return Task.CompletedTask;
+        }
+    );
+});
 
 // Application + infrastructure
 builder.Services.AddApplication();
