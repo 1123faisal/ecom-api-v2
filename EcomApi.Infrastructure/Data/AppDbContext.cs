@@ -19,6 +19,9 @@ public class AppDbContext : DbContext
     {
         base.OnModelCreating(modelBuilder);
 
+        // store UserRole as string in database - readable and safe
+        modelBuilder.Entity<User>().Property(u => u.Role).HasConversion<string>();
+
         // product -> category relationship
         modelBuilder
             .Entity<Product>()

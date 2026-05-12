@@ -5,6 +5,7 @@ namespace EcomApi.Application.Services.Interfaces;
 
 public interface IAuthService
 {
+    Task<AuthResponseDto?> RegisterAdminAsync(RegisterDto dto);
     Task<AuthResponseDto?> RegisterAsync(RegisterDto dto);
     Task<AuthResponseDto?> LoginAsync(LoginDto dto);
 }

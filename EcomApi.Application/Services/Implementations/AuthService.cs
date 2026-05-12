@@ -5,6 +5,7 @@ using System.Text;
 using EcomApi.Application.DTOs.Auth;
 using EcomApi.Application.Services.Interfaces;
 using EcomApi.Domain.Entities;
+using EcomApi.Domain.Enums;
 using EcomApi.Domain.Interfaces;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
@@ -29,7 +30,34 @@ public class AuthService : IAuthService
             return null;
         if (!BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash))
             return null;
-        return new AuthResponseDto(GenerateToken(user), user.Username, user.Email, user.Role);
+        return new AuthResponseDto(
+            GenerateToken(user),
+            user.Username,
+            user.Email,
+            user.Role.ToString()
+        );
+    }
+
+    public async Task<AuthResponseDto?> RegisterAdminAsync(RegisterDto dto)
+    {
+        var exists = await _userRepository.ExistsAsync(dto.Username, dto.Email);
+        if (exists)
+            return null;
+
+        var user = new User
+        {
+            Username = dto.Username,
+            Email = dto.Email,
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password),
+            Role = UserRole.Admin,
+        };
+        var created = await _userRepository.AddAsync(user);
+        return new AuthResponseDto(
+            Email: created.Email,
+            Username: created.Username,
+            Role: created.Role.ToString(),
+            Token: GenerateToken(created)
+        );
     }
 
     public async Task<AuthResponseDto?> RegisterAsync(RegisterDto dto)
@@ -42,14 +70,14 @@ public class AuthService : IAuthService
             Username = dto.Username,
             Email = dto.Email,
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password),
-            Role = "Customer",
+            Role = UserRole.Customer,
         };
         var created = await _userRepository.AddAsync(user);
         return new AuthResponseDto(
             Token: GenerateToken(created),
             Username: created.Username,
             Email: created.Email,
-            Role: created.Role
+            Role: created.Role.ToString()
         );
     }
 
@@ -60,7 +88,7 @@ public class AuthService : IAuthService
             new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
             new Claim(ClaimTypes.Name, user.Username),
             new Claim(ClaimTypes.Email, user.Email),
-            new Claim(ClaimTypes.Role, user.Role),
+            new Claim(ClaimTypes.Role, user.Role.ToString()),
         };
 
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]!));

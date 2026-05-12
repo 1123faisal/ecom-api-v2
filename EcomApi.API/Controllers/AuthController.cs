@@ -10,10 +10,27 @@ namespace EcomApi.API.Controllers;
 public class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;
+    private readonly IConfiguration _configuration;
 
-    public AuthController(IAuthService authService)
+    public AuthController(IAuthService authService, IConfiguration configuration)
     {
         _authService = authService;
+        _configuration = configuration;
+    }
+
+    [HttpPost("register-admin")]
+    public async Task<ActionResult<AuthResponseDto>> RegisterAdmin(
+        RegisterDto dto,
+        [FromHeader(Name = "X-Admin-Secret")] string? adminSecret
+    )
+    {
+        if (adminSecret != _configuration["AdminSecret"])
+            return Unauthorized("Invalid Admin Secret.");
+
+        var result = await _authService.RegisterAdminAsync(dto);
+        if (result == null)
+            return BadRequest("Username or email already taken");
+        return Ok(result);
     }
 
     [HttpPost("register")]
