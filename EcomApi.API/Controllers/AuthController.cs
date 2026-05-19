@@ -1,7 +1,8 @@
+using EcomApi.API.Options;
 using EcomApi.Application.DTOs.Auth;
 using EcomApi.Application.Services.Interfaces;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 
 namespace EcomApi.API.Controllers;
 
@@ -10,44 +11,56 @@ namespace EcomApi.API.Controllers;
 public class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;
-    private readonly IConfiguration _configuration;
+    private readonly AdminOptions _adminOptions;
 
-    public AuthController(IAuthService authService, IConfiguration configuration)
+    public AuthController(IAuthService authService, IOptions<AdminOptions> adminOptions)
     {
         _authService = authService;
-        _configuration = configuration;
+        _adminOptions = adminOptions.Value;
     }
 
     [HttpPost("register-admin")]
+    [ProducesResponseType(typeof(AuthResponseDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<ActionResult<AuthResponseDto>> RegisterAdmin(
         RegisterDto dto,
-        [FromHeader(Name = "X-Admin-Secret")] string? adminSecret
+        [FromHeader(Name = "X-Admin-Secret")] string? adminSecret,
+        CancellationToken ct
     )
     {
-        if (adminSecret != _configuration["AdminSecret"])
-            return Unauthorized("Invalid Admin Secret.");
+        if (adminSecret != _adminOptions.Secret)
+            return Unauthorized("Invalid admin secret.");
 
-        var result = await _authService.RegisterAdminAsync(dto);
+        var result = await _authService.RegisterAdminAsync(dto, ct);
         if (result == null)
-            return BadRequest("Username or email already taken");
+            return Conflict("Username or email is already taken.");
+
         return Ok(result);
     }
 
     [HttpPost("register")]
-    public async Task<ActionResult<AuthResponseDto>> Register(RegisterDto dto)
+    [ProducesResponseType(typeof(AuthResponseDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<AuthResponseDto>> Register(RegisterDto dto, CancellationToken ct)
     {
-        var result = await _authService.RegisterAsync(dto);
+        var result = await _authService.RegisterAsync(dto, ct);
         if (result == null)
-            return BadRequest("Username or email already exists.");
+            return Conflict("Username or email already exists.");
+
         return Ok(result);
     }
 
     [HttpPost("login")]
-    public async Task<ActionResult<AuthResponseDto>> Login(LoginDto dto)
+    [ProducesResponseType(typeof(AuthResponseDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<AuthResponseDto>> Login(LoginDto dto, CancellationToken ct)
     {
-        var result = await _authService.LoginAsync(dto);
+        var result = await _authService.LoginAsync(dto, ct);
         if (result == null)
             return Unauthorized("Invalid username or password.");
+
         return Ok(result);
     }
 }
+

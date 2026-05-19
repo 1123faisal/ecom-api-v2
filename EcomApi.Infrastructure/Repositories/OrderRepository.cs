@@ -1,5 +1,5 @@
-using System;
 using EcomApi.Domain.Entities;
+using EcomApi.Domain.Enums;
 using EcomApi.Domain.Interfaces;
 using EcomApi.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
@@ -15,48 +15,53 @@ public class OrderRepository : IOrderRepository
         _db = db;
     }
 
-    public async Task<Order> CreateAsync(Order order)
+    public async Task<Order> CreateAsync(Order order, CancellationToken ct = default)
     {
         _db.Orders.Add(order);
-        await _db.SaveChangesAsync();
-        return await GetByIdAsync(order.Id) ?? order;
+        await _db.SaveChangesAsync(ct);
+        return await GetByIdAsync(order.Id, ct) ?? order;
     }
 
-    public async Task<List<Order>> GetAllAsync()
+    public async Task<List<Order>> GetAllAsync(CancellationToken ct = default)
     {
-        return await _db
-            .Orders.Include(o => o.User)
+        return await _db.Orders
+            .AsNoTracking()
+            .Include(o => o.User)
             .Include(o => o.OrderItems)
                 .ThenInclude(oi => oi.Product)
-            .ToListAsync();
+            .ToListAsync(ct);
     }
 
-    public async Task<Order?> GetByIdAsync(int id)
+    public async Task<Order?> GetByIdAsync(int id, CancellationToken ct = default)
     {
-        return await _db
-            .Orders.Include(o => o.User)
+        return await _db.Orders
+            .AsNoTracking()
+            .Include(o => o.User)
             .Include(o => o.OrderItems)
                 .ThenInclude(oi => oi.Product)
-            .FirstOrDefaultAsync(o => o.Id == id);
+            .FirstOrDefaultAsync(o => o.Id == id, ct);
     }
 
-    public async Task<List<Order>> GetByUserIdAsync(int userId)
+    public async Task<List<Order>> GetByUserIdAsync(int userId, CancellationToken ct = default)
     {
-        return await _db
-            .Orders.Include(o => o.User)
+        return await _db.Orders
+            .AsNoTracking()
+            .Include(o => o.User)
             .Include(o => o.OrderItems)
                 .ThenInclude(oi => oi.Product)
             .Where(o => o.UserId == userId)
-            .ToListAsync();
+            .ToListAsync(ct);
     }
 
-    public async Task<Order?> UpdateStatusAsync(int id, string Status)
+    public async Task<Order?> UpdateStatusAsync(int id, OrderStatus status, CancellationToken ct = default)
     {
-        var order = await _db.Orders.FindAsync(id);
+        var order = await _db.Orders.FindAsync([id], ct);
         if (order == null)
             return null;
-        order.Status = Status;
-        await _db.SaveChangesAsync();
-        return await GetByIdAsync(id) ?? order;
+
+        order.Status = status;
+        await _db.SaveChangesAsync(ct);
+        return await GetByIdAsync(id, ct) ?? order;
     }
 }
+

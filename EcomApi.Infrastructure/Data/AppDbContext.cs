@@ -1,5 +1,5 @@
-using System;
 using EcomApi.Domain.Entities;
+using EcomApi.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 
 namespace EcomApi.Infrastructure.Data;
@@ -21,6 +21,9 @@ public class AppDbContext : DbContext
 
         // store UserRole as string in database - readable and safe
         modelBuilder.Entity<User>().Property(u => u.Role).HasConversion<string>();
+
+        // store OrderStatus as string in database
+        modelBuilder.Entity<Order>().Property(o => o.Status).HasConversion<string>();
 
         // product -> category relationship
         modelBuilder

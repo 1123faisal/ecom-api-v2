@@ -1,6 +1,6 @@
-using System;
 using System.Net;
 using System.Text.Json;
+using EcomApi.Domain.Exceptions;
 
 namespace EcomApi.API.Middleware;
 
@@ -23,21 +23,38 @@ public class ExceptionMiddleware
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Unhandled Exception: {Message}", ex.Message);
             await HandleExceptionAsync(context, ex);
         }
     }
 
-    private static Task HandleExceptionAsync(HttpContext context, Exception ex)
+    private async Task HandleExceptionAsync(HttpContext context, Exception ex)
     {
-        var statusCode = ex.Message.Contains("not found", StringComparison.OrdinalIgnoreCase)
-            ? HttpStatusCode.NotFound
-            : HttpStatusCode.InternalServerError;
-        context.Response.ContentType = "application/json";
+        var (statusCode, title) = ex switch
+        {
+            NotFoundException => (HttpStatusCode.NotFound, "Not Found"),
+            ConflictException => (HttpStatusCode.Conflict, "Conflict"),
+            BusinessRuleException => (HttpStatusCode.UnprocessableEntity, "Business Rule Violation"),
+            _ => (HttpStatusCode.InternalServerError, "Internal Server Error"),
+        };
+
+        if (statusCode == HttpStatusCode.InternalServerError)
+            _logger.LogError(ex, "Unhandled exception: {Message}", ex.Message);
+        else
+            _logger.LogWarning(ex, "{Title}: {Message}", title, ex.Message);
+
+        context.Response.ContentType = "application/problem+json";
         context.Response.StatusCode = (int)statusCode;
 
-        var response = new { statusCode = (int)statusCode, message = ex.Message };
+        var problem = new
+        {
+            type = $"https://httpstatuses.com/{(int)statusCode}",
+            title,
+            status = (int)statusCode,
+            detail = ex.Message,
+            traceId = context.TraceIdentifier,
+        };
 
-        return context.Response.WriteAsync(JsonSerializer.Serialize(response));
+        await context.Response.WriteAsync(JsonSerializer.Serialize(problem));
     }
 }
+

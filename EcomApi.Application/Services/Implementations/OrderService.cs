@@ -1,7 +1,8 @@
-using System;
 using EcomApi.Application.DTOs.Order;
 using EcomApi.Application.Services.Interfaces;
 using EcomApi.Domain.Entities;
+using EcomApi.Domain.Enums;
+using EcomApi.Domain.Exceptions;
 using EcomApi.Domain.Interfaces;
 
 namespace EcomApi.Application.Services.Implementations;
@@ -17,20 +18,20 @@ public class OrderService : IOrderService
         _orderRepository = orderRepository;
     }
 
-    public async Task<OrderResponseDto> CreateAsync(int userId, CreateOrderDto dto)
+    public async Task<OrderResponseDto> CreateAsync(int userId, CreateOrderDto dto, CancellationToken ct = default)
     {
         var orderItems = new List<OrderItem>();
-        double totalAmount = 0;
+        decimal totalAmount = 0;
 
         foreach (var item in dto.Items)
         {
             var product = await _productRepository.GetByIdAsync(item.ProductId);
             if (product == null)
-                throw new Exception($"Product {item.ProductId} not found.");
+                throw new NotFoundException($"Product {item.ProductId} not found.");
 
             if (product.Stock < item.Quantity)
-                throw new Exception(
-                    $"Insufficient stock for {product.Name}. Available: {product.Stock}, Requested:{item.Quantity}"
+                throw new BusinessRuleException(
+                    $"Insufficient stock for '{product.Name}'. Available: {product.Stock}, Requested: {item.Quantity}."
                 );
 
             orderItems.Add(
@@ -38,78 +39,68 @@ public class OrderService : IOrderService
                 {
                     ProductId = item.ProductId,
                     Quantity = item.Quantity,
-                    UnitPrice = product.Price,
+                    UnitPrice = (decimal)product.Price,
                 }
             );
 
-            totalAmount += product.Price * item.Quantity;
-
-            await _productRepository.UpdateStockAsync(
-                item.ProductId,
-                product.Stock - item.Quantity
-            );
+            totalAmount += (decimal)product.Price * item.Quantity;
+            await _productRepository.UpdateStockAsync(item.ProductId, product.Stock - item.Quantity);
         }
 
         var order = new Order
         {
             UserId = userId,
             TotalAmount = totalAmount,
-            Status = "Pending",
+            Status = OrderStatus.Pending,
             OrderItems = orderItems,
         };
 
-        var created = await _orderRepository.CreateAsync(order);
-
+        var created = await _orderRepository.CreateAsync(order, ct);
         return MapToDto(created);
     }
 
-    public async Task<List<OrderResponseDto>> GetAllAsync()
+    public async Task<List<OrderResponseDto>> GetAllAsync(CancellationToken ct = default)
     {
-        var orders = await _orderRepository.GetAllAsync();
+        var orders = await _orderRepository.GetAllAsync(ct);
         return orders.Select(MapToDto).ToList();
     }
 
-    public async Task<OrderResponseDto?> GetByIdAsync(int id)
+    public async Task<OrderResponseDto?> GetByIdAsync(int id, CancellationToken ct = default)
     {
-        var order = await _orderRepository.GetByIdAsync(id);
+        var order = await _orderRepository.GetByIdAsync(id, ct);
         return order == null ? null : MapToDto(order);
     }
 
-    public async Task<List<OrderResponseDto>> GetByUserIdAsync(int userId)
+    public async Task<List<OrderResponseDto>> GetByUserIdAsync(int userId, CancellationToken ct = default)
     {
-        var orders = await _orderRepository.GetByUserIdAsync(userId);
+        var orders = await _orderRepository.GetByUserIdAsync(userId, ct);
         return orders.Select(MapToDto).ToList();
     }
 
-    public async Task<OrderResponseDto?> UpdateStatusAsync(int id, UpdateOrderStatusDto dto)
+    public async Task<OrderResponseDto?> UpdateStatusAsync(int id, UpdateOrderStatusDto dto, CancellationToken ct = default)
     {
-        var validStatuses = new[] { "Pending", "Processing", "Shipped", "Delivered", "Cancelled" };
-        if (!validStatuses.Contains(dto.Status))
-            throw new Exception(
-                $"Invalid status. valid values:.{string.Join(", ", validStatuses)}"
-            );
-
-        var order = await _orderRepository.UpdateStatusAsync(id, dto.Status);
+        var order = await _orderRepository.UpdateStatusAsync(id, dto.Status, ct);
         return order == null ? null : MapToDto(order);
     }
 
-    private OrderResponseDto MapToDto(Order order) =>
+    private static OrderResponseDto MapToDto(Order order) =>
         new(
             order.Id,
             order.UserId,
             order.User?.Username ?? "Unknown",
             order.OrderedAt,
-            order.Status,
+            order.Status.ToString(),
             order.TotalAmount,
             order.OrderItems.Select(MapToOrderItemDto).ToList()
         );
 
-    private OrderItemResponseDto MapToOrderItemDto(OrderItem orderItem) =>
+    private static OrderItemResponseDto MapToOrderItemDto(OrderItem oi) =>
         new(
-            orderItem.ProductId,
-            orderItem.Product?.Name ?? "Unknown",
-            orderItem.Quantity,
-            orderItem.UnitPrice,
-            orderItem.Quantity * orderItem.UnitPrice
+            oi.ProductId,
+            oi.Product?.Name ?? "Unknown",
+            oi.Quantity,
+            oi.UnitPrice,
+            oi.Quantity * oi.UnitPrice
         );
 }
+

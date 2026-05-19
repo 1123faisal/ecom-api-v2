@@ -1,13 +1,13 @@
-using System;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using EcomApi.Application.DTOs.Auth;
+using EcomApi.Application.Options;
 using EcomApi.Application.Services.Interfaces;
 using EcomApi.Domain.Entities;
 using EcomApi.Domain.Enums;
 using EcomApi.Domain.Interfaces;
-using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 
 namespace EcomApi.Application.Services.Implementations;
@@ -15,33 +15,26 @@ namespace EcomApi.Application.Services.Implementations;
 public class AuthService : IAuthService
 {
     private readonly IUserRepository _userRepository;
-    private readonly IConfiguration _configuration;
+    private readonly JwtOptions _jwt;
 
-    public AuthService(IUserRepository userRepository, IConfiguration configuration)
+    public AuthService(IUserRepository userRepository, IOptions<JwtOptions> jwtOptions)
     {
         _userRepository = userRepository;
-        _configuration = configuration;
+        _jwt = jwtOptions.Value;
     }
 
-    public async Task<AuthResponseDto?> LoginAsync(LoginDto dto)
+    public async Task<AuthResponseDto?> LoginAsync(LoginDto dto, CancellationToken ct = default)
     {
-        var user = await _userRepository.GetByUsernameAsync(dto.Username);
-        if (user == null)
+        var user = await _userRepository.GetByUsernameAsync(dto.Username, ct);
+        if (user == null || !BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash))
             return null;
-        if (!BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash))
-            return null;
-        return new AuthResponseDto(
-            GenerateToken(user),
-            user.Username,
-            user.Email,
-            user.Role.ToString()
-        );
+
+        return ToResponse(user);
     }
 
-    public async Task<AuthResponseDto?> RegisterAdminAsync(RegisterDto dto)
+    public async Task<AuthResponseDto?> RegisterAdminAsync(RegisterDto dto, CancellationToken ct = default)
     {
-        var exists = await _userRepository.ExistsAsync(dto.Username, dto.Email);
-        if (exists)
+        if (await _userRepository.ExistsAsync(dto.Username, dto.Email, ct))
             return null;
 
         var user = new User
@@ -51,20 +44,16 @@ public class AuthService : IAuthService
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password),
             Role = UserRole.Admin,
         };
-        var created = await _userRepository.AddAsync(user);
-        return new AuthResponseDto(
-            Email: created.Email,
-            Username: created.Username,
-            Role: created.Role.ToString(),
-            Token: GenerateToken(created)
-        );
+
+        var created = await _userRepository.AddAsync(user, ct);
+        return ToResponse(created);
     }
 
-    public async Task<AuthResponseDto?> RegisterAsync(RegisterDto dto)
+    public async Task<AuthResponseDto?> RegisterAsync(RegisterDto dto, CancellationToken ct = default)
     {
-        var exists = await _userRepository.ExistsAsync(dto.Username, dto.Email);
-        if (exists)
+        if (await _userRepository.ExistsAsync(dto.Username, dto.Email, ct))
             return null;
+
         var user = new User
         {
             Username = dto.Username,
@@ -72,14 +61,13 @@ public class AuthService : IAuthService
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password),
             Role = UserRole.Customer,
         };
-        var created = await _userRepository.AddAsync(user);
-        return new AuthResponseDto(
-            Token: GenerateToken(created),
-            Username: created.Username,
-            Email: created.Email,
-            Role: created.Role.ToString()
-        );
+
+        var created = await _userRepository.AddAsync(user, ct);
+        return ToResponse(created);
     }
+
+    private AuthResponseDto ToResponse(User user) =>
+        new(GenerateToken(user), user.Username, user.Email, user.Role.ToString());
 
     private string GenerateToken(User user)
     {
@@ -91,15 +79,18 @@ public class AuthService : IAuthService
             new Claim(ClaimTypes.Role, user.Role.ToString()),
         };
 
-        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]!));
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwt.Key));
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
         var token = new JwtSecurityToken(
-            issuer: _configuration["Jwt:Issuer"],
-            audience: _configuration["Jwt:Audience"],
+            issuer: _jwt.Issuer,
+            audience: _jwt.Audience,
             claims: claims,
-            expires: DateTime.UtcNow.AddHours(double.Parse(_configuration["Jwt:ExpiryHours"]!)),
+            expires: DateTime.UtcNow.AddHours(_jwt.ExpiryHours),
             signingCredentials: creds
         );
+
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
 }
+

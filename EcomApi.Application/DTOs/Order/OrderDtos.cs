@@ -1,15 +1,26 @@
+using System.ComponentModel.DataAnnotations;
+using EcomApi.Domain.Enums;
+
 namespace EcomApi.Application.DTOs.Order;
 
-public record CreateOrderItemDto(int ProductId, int Quantity);
+public record CreateOrderItemDto(
+    [property: Required, Range(1, int.MaxValue, ErrorMessage = "ProductId must be a positive integer.")]
+        int ProductId,
+    [property: Required, Range(1, 100, ErrorMessage = "Quantity must be between 1 and 100.")]
+        int Quantity
+);
 
-public record CreateOrderDto(List<CreateOrderItemDto> Items);
+public record CreateOrderDto(
+    [property: Required, MinLength(1, ErrorMessage = "Order must contain at least one item.")]
+        List<CreateOrderItemDto> Items
+);
 
 public record OrderItemResponseDto(
     int ProductId,
     string ProductName,
     int Quantity,
-    double UnitPrice,
-    double Subtotal
+    decimal UnitPrice,
+    decimal Subtotal
 );
 
 public record OrderResponseDto(
@@ -18,8 +29,9 @@ public record OrderResponseDto(
     string Username,
     DateTime OrderedAt,
     string Status,
-    double TotalAmount,
+    decimal TotalAmount,
     List<OrderItemResponseDto> Items
 );
 
-public record UpdateOrderStatusDto(string Status);
+public record UpdateOrderStatusDto([property: Required] OrderStatus Status);
+

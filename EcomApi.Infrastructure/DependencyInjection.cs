@@ -1,4 +1,3 @@
-using System;
 using EcomApi.Domain.Interfaces;
 using EcomApi.Infrastructure.Caching;
 using EcomApi.Infrastructure.Data;
@@ -6,6 +5,7 @@ using EcomApi.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using StackExchange.Redis;
 
 namespace EcomApi.Infrastructure;
 
@@ -17,13 +17,18 @@ public static class DependencyInjection
     )
     {
         services.AddDbContext<AppDbContext>(options =>
-        {
-            options.UseNpgsql(configuration.GetConnectionString("DefaultConnection"));
-        });
+            options.UseNpgsql(configuration.GetConnectionString("DefaultConnection"))
+        );
+
+        var redisConnectionString = configuration.GetConnectionString("Redis")!;
+
+        services.AddSingleton<IConnectionMultiplexer>(
+            ConnectionMultiplexer.Connect(redisConnectionString)
+        );
 
         services.AddStackExchangeRedisCache(options =>
         {
-            options.Configuration = configuration.GetConnectionString("Redis");
+            options.Configuration = redisConnectionString;
             options.InstanceName = "EctomereApi";
         });
 
@@ -35,3 +40,4 @@ public static class DependencyInjection
         return services;
     }
 }
+

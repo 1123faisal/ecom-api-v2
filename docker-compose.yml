@@ -14,6 +14,7 @@ services:
       - Jwt__Issuer=EcomApi
       - Jwt__Audience=EcomApiUsers
       - Jwt__ExpiryHours=24
+      - Admin__Secret=supersecretadminkey
     depends_on:
       db:
         condition: service_healthy

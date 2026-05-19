@@ -1,5 +1,7 @@
 using System.Text;
+using System.Text.Json.Serialization;
 using EcomApi.API.Middleware;
+using EcomApi.API.Options;
 using EcomApi.Application;
 using EcomApi.Infrastructure;
 using EcomApi.Infrastructure.Data;
@@ -11,8 +13,10 @@ using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Services
-builder.Services.AddControllers();
+// Controllers — serialize enums as strings globally
+builder.Services.AddControllers()
+    .AddJsonOptions(o => o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddOpenApi(options =>
 {
@@ -54,11 +58,18 @@ builder.Services.AddOpenApi(options =>
     );
 });
 
+// Typed options — validated at startup
+builder.Services.AddOptions<AdminOptions>()
+    .Bind(builder.Configuration.GetSection(AdminOptions.SectionName))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+
 // Application + infrastructure
-builder.Services.AddApplication();
+builder.Services.AddApplication(builder.Configuration);
 builder.Services.AddInfrastructure(builder.Configuration);
 
-// JWT Auth
+// JWT Auth — re-uses the same JwtOptions already bound inside AddApplication
+var jwtSection = builder.Configuration.GetSection("Jwt");
 builder
     .Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -69,65 +80,72 @@ builder
             ValidateAudience = true,
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
-            ValidIssuer = builder.Configuration["Jwt:Issuer"],
-            ValidAudience = builder.Configuration["Jwt:Audience"],
+            ValidIssuer = jwtSection["Issuer"],
+            ValidAudience = jwtSection["Audience"],
             IssuerSigningKey = new SymmetricSecurityKey(
-                Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]!)
+                Encoding.UTF8.GetBytes(jwtSection["Key"]!)
             ),
         };
     });
 builder.Services.AddAuthorization();
 
-// Cors for Development
+// CORS — AllowAll is fine in development; configure AllowedOrigins in production
+var allowedOrigins = builder.Configuration.GetSection("AllowedOrigins").Get<string[]>();
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy(
-        "AllowAll",
-        policy => policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader()
-    );
+    options.AddPolicy("DefaultCors", policy =>
+    {
+        if (allowedOrigins is { Length: > 0 })
+            policy.WithOrigins(allowedOrigins).AllowAnyMethod().AllowAnyHeader();
+        else
+            policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader();
+    });
 });
 
 // app pipeline
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
     app.MapScalarApiReference();
 }
 
-// global error handler
 app.UseMiddleware<ExceptionMiddleware>();
 
 app.UseHttpsRedirection();
-app.UseCors("AllowAll");
+app.UseCors("DefaultCors");
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 
-// migration and data seed.
+// Apply pending EF Core migrations on startup (with retry for Docker health checks)
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
     var retries = 5;
+
     while (retries > 0)
     {
         try
         {
             db.Database.Migrate();
-            System.Console.WriteLine("Database Ready.");
+            logger.LogInformation("Database is ready.");
             break;
         }
-        catch (System.Exception ex)
+        catch (Exception ex)
         {
             retries--;
-            System.Console.WriteLine(
-                $"Database not ready - retrying ({retries} left): {ex.Message}"
+            logger.LogWarning(
+                ex,
+                "Database not ready — retrying ({Retries} attempts left).",
+                retries
             );
-            Thread.Sleep(3000);
+            await Task.Delay(3000);
         }
     }
 }
 
 app.Run();
+
