@@ -33,7 +33,10 @@ public class ExceptionMiddleware
         {
             NotFoundException => (HttpStatusCode.NotFound, "Not Found"),
             ConflictException => (HttpStatusCode.Conflict, "Conflict"),
-            BusinessRuleException => (HttpStatusCode.UnprocessableEntity, "Business Rule Violation"),
+            BusinessRuleException => (
+                HttpStatusCode.UnprocessableEntity,
+                "Business Rule Violation"
+            ),
             _ => (HttpStatusCode.InternalServerError, "Internal Server Error"),
         };
 

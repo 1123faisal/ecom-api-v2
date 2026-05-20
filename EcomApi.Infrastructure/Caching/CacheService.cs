@@ -31,7 +31,7 @@ public class CacheService : ICacheService
         // Use Redis SCAN to find all keys matching the prefix pattern, then delete them in batch.
         var db = _redis.GetDatabase();
         var server = _redis.GetServer(_redis.GetEndPoints().First());
-        var instanceName = "EctomereApi"; // must match InstanceName in AddStackExchangeRedisCache
+        var instanceName = "EcomApi"; // must match InstanceName in AddStackExchangeRedisCache
 
         var pattern = $"{instanceName}{prefix}*";
         var keys = server.Keys(pattern: pattern).ToArray();
@@ -48,4 +48,3 @@ public class CacheService : ICacheService
         await _cache.SetStringAsync(key, JsonSerializer.Serialize(value), options);
     }
 }
-

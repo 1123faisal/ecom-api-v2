@@ -4,14 +4,13 @@ using EcomApi.Domain.Enums;
 namespace EcomApi.Application.DTOs.Order;
 
 public record CreateOrderItemDto(
-    [property: Required, Range(1, int.MaxValue, ErrorMessage = "ProductId must be a positive integer.")]
+    [Required, Range(1, int.MaxValue, ErrorMessage = "ProductId must be a positive integer.")]
         int ProductId,
-    [property: Required, Range(1, 100, ErrorMessage = "Quantity must be between 1 and 100.")]
-        int Quantity
+    [Required, Range(1, 100, ErrorMessage = "Quantity must be between 1 and 100.")] int Quantity
 );
 
 public record CreateOrderDto(
-    [property: Required, MinLength(1, ErrorMessage = "Order must contain at least one item.")]
+    [Required, MinLength(1, ErrorMessage = "Order must contain at least one item.")]
         List<CreateOrderItemDto> Items
 );
 
@@ -33,5 +32,4 @@ public record OrderResponseDto(
     List<OrderItemResponseDto> Items
 );
 
-public record UpdateOrderStatusDto([property: Required] OrderStatus Status);
-
+public record UpdateOrderStatusDto([Required] OrderStatus Status);

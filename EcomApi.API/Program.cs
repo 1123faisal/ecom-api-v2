@@ -14,7 +14,8 @@ using Scalar.AspNetCore;
 var builder = WebApplication.CreateBuilder(args);
 
 // Controllers — serialize enums as strings globally
-builder.Services.AddControllers()
+builder
+    .Services.AddControllers()
     .AddJsonOptions(o => o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 
 builder.Services.AddEndpointsApiExplorer();
@@ -56,10 +57,23 @@ builder.Services.AddOpenApi(options =>
             return Task.CompletedTask;
         }
     );
+
+    // Scalar uses empty string as a generic placeholder when no example is set.
+    // This transformer injects a sensible example value for every integer schema
+    // so the generated curl snippets show real numbers instead of "".
+    options.AddSchemaTransformer(
+        (schema, ctx, ct) =>
+        {
+            if (schema.Type == JsonSchemaType.Integer && schema.Example == null)
+                schema.Example = System.Text.Json.Nodes.JsonValue.Create(1);
+            return Task.CompletedTask;
+        }
+    );
 });
 
 // Typed options — validated at startup
-builder.Services.AddOptions<AdminOptions>()
+builder
+    .Services.AddOptions<AdminOptions>()
     .Bind(builder.Configuration.GetSection(AdminOptions.SectionName))
     .ValidateDataAnnotations()
     .ValidateOnStart();
@@ -82,9 +96,7 @@ builder
             ValidateIssuerSigningKey = true,
             ValidIssuer = jwtSection["Issuer"],
             ValidAudience = jwtSection["Audience"],
-            IssuerSigningKey = new SymmetricSecurityKey(
-                Encoding.UTF8.GetBytes(jwtSection["Key"]!)
-            ),
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSection["Key"]!)),
         };
     });
 builder.Services.AddAuthorization();
@@ -93,13 +105,16 @@ builder.Services.AddAuthorization();
 var allowedOrigins = builder.Configuration.GetSection("AllowedOrigins").Get<string[]>();
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("DefaultCors", policy =>
-    {
-        if (allowedOrigins is { Length: > 0 })
-            policy.WithOrigins(allowedOrigins).AllowAnyMethod().AllowAnyHeader();
-        else
-            policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader();
-    });
+    options.AddPolicy(
+        "DefaultCors",
+        policy =>
+        {
+            if (allowedOrigins is { Length: > 0 })
+                policy.WithOrigins(allowedOrigins).AllowAnyMethod().AllowAnyHeader();
+            else
+                policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader();
+        }
+    );
 });
 
 // app pipeline
@@ -148,4 +163,3 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.Run();
-

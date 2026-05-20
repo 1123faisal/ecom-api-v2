@@ -22,14 +22,15 @@ public static class DependencyInjection
 
         var redisConnectionString = configuration.GetConnectionString("Redis")!;
 
-        services.AddSingleton<IConnectionMultiplexer>(
-            ConnectionMultiplexer.Connect(redisConnectionString)
-        );
+        var redisOptions = ConfigurationOptions.Parse(redisConnectionString);
+        redisOptions.AbortOnConnectFail = false; // don't crash if Redis is temporarily unavailable
+
+        services.AddSingleton<IConnectionMultiplexer>(ConnectionMultiplexer.Connect(redisOptions));
 
         services.AddStackExchangeRedisCache(options =>
         {
-            options.Configuration = redisConnectionString;
-            options.InstanceName = "EctomereApi";
+            options.ConfigurationOptions = redisOptions;
+            options.InstanceName = "EcomApi";
         });
 
         services.AddScoped<IProductRepository, ProductRepository>();
@@ -40,4 +41,3 @@ public static class DependencyInjection
         return services;
     }
 }
-
