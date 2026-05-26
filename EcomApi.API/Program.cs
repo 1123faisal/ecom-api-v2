@@ -102,16 +102,19 @@ builder
 builder.Services.AddAuthorization();
 
 // Health checks — /healthz/live for liveness, /healthz/ready for readiness
-builder.Services.AddHealthChecks()
+builder
+    .Services.AddHealthChecks()
     .AddNpgSql(
         builder.Configuration.GetConnectionString("DefaultConnection")!,
         name: "postgres",
         tags: ["ready"]
     )
     .AddRedis(
-        builder.Configuration.GetConnectionString("Redis")!,
+        sp => sp.GetRequiredService<StackExchange.Redis.IConnectionMultiplexer>(),
         name: "redis",
-        tags: ["ready"]
+        failureStatus: Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Degraded,
+        tags: ["ready"],
+        timeout: TimeSpan.FromSeconds(1)
     );
 
 // CORS — AllowAll is fine in development; configure AllowedOrigins in production
@@ -147,10 +150,13 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 app.MapHealthChecks("/healthz/live");
-app.MapHealthChecks("/healthz/ready", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
-{
-    Predicate = check => check.Tags.Contains("ready"),
-});
+app.MapHealthChecks(
+    "/healthz/ready",
+    new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+    {
+        Predicate = check => check.Tags.Contains("ready"),
+    }
+);
 
 // Apply pending EF Core migrations on startup (with retry for Docker health checks)
 using (var scope = app.Services.CreateScope())
