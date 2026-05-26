@@ -101,6 +101,19 @@ builder
     });
 builder.Services.AddAuthorization();
 
+// Health checks — /healthz/live for liveness, /healthz/ready for readiness
+builder.Services.AddHealthChecks()
+    .AddNpgSql(
+        builder.Configuration.GetConnectionString("DefaultConnection")!,
+        name: "postgres",
+        tags: ["ready"]
+    )
+    .AddRedis(
+        builder.Configuration.GetConnectionString("Redis")!,
+        name: "redis",
+        tags: ["ready"]
+    );
+
 // CORS — AllowAll is fine in development; configure AllowedOrigins in production
 var allowedOrigins = builder.Configuration.GetSection("AllowedOrigins").Get<string[]>();
 builder.Services.AddCors(options =>
@@ -133,6 +146,11 @@ app.UseCors("DefaultCors");
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+app.MapHealthChecks("/healthz/live");
+app.MapHealthChecks("/healthz/ready", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("ready"),
+});
 
 // Apply pending EF Core migrations on startup (with retry for Docker health checks)
 using (var scope = app.Services.CreateScope())
@@ -145,7 +163,7 @@ using (var scope = app.Services.CreateScope())
     {
         try
         {
-            db.Database.Migrate();
+            await db.Database.MigrateAsync();
             logger.LogInformation("Database is ready.");
             break;
         }

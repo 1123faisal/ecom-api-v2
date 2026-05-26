@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using EcomApi.API.Options;
 using EcomApi.Application.DTOs.Auth;
 using EcomApi.Application.Services.Interfaces;
@@ -20,7 +22,7 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("register-admin")]
-    [ProducesResponseType(typeof(AuthResponseDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(AuthResponseDto), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<ActionResult<AuthResponseDto>> RegisterAdmin(
@@ -29,26 +31,21 @@ public class AuthController : ControllerBase
         CancellationToken ct
     )
     {
-        if (adminSecret != _adminOptions.Secret)
+        // Use constant-time comparison to prevent timing attacks on the admin secret.
+        if (!IsValidAdminSecret(adminSecret))
             return Unauthorized("Invalid admin secret.");
 
         var result = await _authService.RegisterAdminAsync(dto, ct);
-        if (result == null)
-            return Conflict("Username or email is already taken.");
-
-        return Ok(result);
+        return CreatedAtAction(nameof(Login), result);
     }
 
     [HttpPost("register")]
-    [ProducesResponseType(typeof(AuthResponseDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(AuthResponseDto), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<ActionResult<AuthResponseDto>> Register(RegisterDto dto, CancellationToken ct)
     {
         var result = await _authService.RegisterAsync(dto, ct);
-        if (result == null)
-            return Conflict("Username or email already exists.");
-
-        return Ok(result);
+        return CreatedAtAction(nameof(Login), result);
     }
 
     [HttpPost("login")]
@@ -62,5 +59,23 @@ public class AuthController : ControllerBase
 
         return Ok(result);
     }
-}
 
+    private bool IsValidAdminSecret(string? provided)
+    {
+        if (provided == null)
+            return false;
+
+        var expected = Encoding.UTF8.GetBytes(_adminOptions.Secret);
+        var actual = Encoding.UTF8.GetBytes(provided);
+
+        // Pad both to the same length so FixedTimeEquals doesn't short-circuit on length mismatch.
+        if (expected.Length != actual.Length)
+        {
+            // Still perform a dummy comparison to consume similar time.
+            CryptographicOperations.FixedTimeEquals(expected, expected);
+            return false;
+        }
+
+        return CryptographicOperations.FixedTimeEquals(expected, actual);
+    }
+}

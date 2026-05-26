@@ -25,7 +25,7 @@ public class OrderService : IOrderService
 
         foreach (var item in dto.Items)
         {
-            var product = await _productRepository.GetByIdAsync(item.ProductId);
+            var product = await _productRepository.GetByIdAsync(item.ProductId, ct);
             if (product == null)
                 throw new NotFoundException($"Product {item.ProductId} not found.");
 
@@ -39,12 +39,12 @@ public class OrderService : IOrderService
                 {
                     ProductId = item.ProductId,
                     Quantity = item.Quantity,
-                    UnitPrice = (decimal)product.Price,
+                    UnitPrice = product.Price,
                 }
             );
 
-            totalAmount += (decimal)product.Price * item.Quantity;
-            await _productRepository.UpdateStockAsync(item.ProductId, product.Stock - item.Quantity);
+            totalAmount += product.Price * item.Quantity;
+            await _productRepository.DecrementStockAsync(item.ProductId, item.Quantity, ct);
         }
 
         var order = new Order

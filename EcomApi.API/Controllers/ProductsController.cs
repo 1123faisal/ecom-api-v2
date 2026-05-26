@@ -17,52 +17,71 @@ public class ProductsController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<List<ProductResponseDto>>> GetAll()
+    [ProducesResponseType(typeof(List<ProductResponseDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<List<ProductResponseDto>>> GetAll(CancellationToken ct)
     {
-        return Ok(await _service.GetAllAsync());
+        return Ok(await _service.GetAllAsync(ct));
     }
 
-    [HttpGet("{id}")]
-    public async Task<ActionResult<ProductResponseDto>> GetById(int id)
+    [HttpGet("{id:int}")]
+    [ProducesResponseType(typeof(ProductResponseDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ProductResponseDto>> GetById(int id, CancellationToken ct)
     {
-        var product = await _service.GetByIdAsync(id);
+        var product = await _service.GetByIdAsync(id, ct);
         if (product == null)
             return NotFound($"Product {id} not found.");
+
         return Ok(product);
     }
 
-    [HttpGet("category/{categoryId}")]
-    public async Task<ActionResult<List<ProductResponseDto>>> GetByCategory(int categoryId)
+    [HttpGet("by-category/{categoryId:int}")]
+    [ProducesResponseType(typeof(List<ProductResponseDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<List<ProductResponseDto>>> GetByCategory(int categoryId, CancellationToken ct)
     {
-        return Ok(await _service.GetByCategoryAsync(categoryId));
+        return Ok(await _service.GetByCategoryAsync(categoryId, ct));
     }
 
     [HttpPost]
     [Authorize(Roles = "Admin")]
-    public async Task<ActionResult<ProductResponseDto>> Create(CreateProductDto dto)
+    [ProducesResponseType(typeof(ProductResponseDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ProductResponseDto>> Create(CreateProductDto dto, CancellationToken ct)
     {
-        var created = await _service.CreateAsync(dto);
+        var created = await _service.CreateAsync(dto, ct);
         return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
     }
 
-    [HttpPut("{id}")]
+    [HttpPut("{id:int}")]
     [Authorize(Roles = "Admin")]
-    public async Task<ActionResult<ProductResponseDto>> Update(int id, UpdateProductDto dto)
+    [ProducesResponseType(typeof(ProductResponseDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ProductResponseDto>> Update(int id, UpdateProductDto dto, CancellationToken ct)
     {
-        var updated = await _service.UpdateAsync(id, dto);
+        var updated = await _service.UpdateAsync(id, dto, ct);
         if (updated == null)
             return NotFound($"Product {id} not found.");
+
         return Ok(updated);
     }
 
-    [HttpDelete("{id}")]
+    [HttpDelete("{id:int}")]
     [Authorize(Roles = "Admin")]
-    public async Task<ActionResult> Delete(int id)
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> Delete(int id, CancellationToken ct)
     {
-        var deleted = await _service.DeleteAsync(id);
-        if (!deleted)
-            return NotFound($"Product {id} not found.");
-
+        // ProductService.DeleteAsync throws NotFoundException if not found;
+        // ExceptionMiddleware converts it to 404.
+        await _service.DeleteAsync(id, ct);
         return NoContent();
     }
 }

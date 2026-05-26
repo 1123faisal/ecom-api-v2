@@ -6,6 +6,7 @@ using EcomApi.Application.Options;
 using EcomApi.Application.Services.Interfaces;
 using EcomApi.Domain.Entities;
 using EcomApi.Domain.Enums;
+using EcomApi.Domain.Exceptions;
 using EcomApi.Domain.Interfaces;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
@@ -32,10 +33,13 @@ public class AuthService : IAuthService
         return ToResponse(user);
     }
 
-    public async Task<AuthResponseDto?> RegisterAdminAsync(RegisterDto dto, CancellationToken ct = default)
+    public async Task<AuthResponseDto> RegisterAdminAsync(
+        RegisterDto dto,
+        CancellationToken ct = default
+    )
     {
         if (await _userRepository.ExistsAsync(dto.Username, dto.Email, ct))
-            return null;
+            throw new ConflictException("Username or email is already taken.");
 
         var user = new User
         {
@@ -49,10 +53,13 @@ public class AuthService : IAuthService
         return ToResponse(created);
     }
 
-    public async Task<AuthResponseDto?> RegisterAsync(RegisterDto dto, CancellationToken ct = default)
+    public async Task<AuthResponseDto> RegisterAsync(
+        RegisterDto dto,
+        CancellationToken ct = default
+    )
     {
         if (await _userRepository.ExistsAsync(dto.Username, dto.Email, ct))
-            return null;
+            throw new ConflictException("Username or email already exists.");
 
         var user = new User
         {
@@ -93,4 +100,3 @@ public class AuthService : IAuthService
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
 }
-

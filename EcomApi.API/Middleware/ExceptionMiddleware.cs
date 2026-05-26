@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using EcomApi.Domain.Exceptions;
+using Microsoft.AspNetCore.Mvc;
 
 namespace EcomApi.API.Middleware;
 
@@ -8,6 +9,11 @@ public class ExceptionMiddleware
 {
     private readonly RequestDelegate _next;
     private readonly ILogger<ExceptionMiddleware> _logger;
+
+    private static readonly JsonSerializerOptions _jsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+    };
 
     public ExceptionMiddleware(RequestDelegate next, ILogger<ExceptionMiddleware> logger)
     {
@@ -33,10 +39,7 @@ public class ExceptionMiddleware
         {
             NotFoundException => (HttpStatusCode.NotFound, "Not Found"),
             ConflictException => (HttpStatusCode.Conflict, "Conflict"),
-            BusinessRuleException => (
-                HttpStatusCode.UnprocessableEntity,
-                "Business Rule Violation"
-            ),
+            BusinessRuleException => (HttpStatusCode.UnprocessableEntity, "Business Rule Violation"),
             _ => (HttpStatusCode.InternalServerError, "Internal Server Error"),
         };
 
@@ -45,19 +48,20 @@ public class ExceptionMiddleware
         else
             _logger.LogWarning(ex, "{Title}: {Message}", title, ex.Message);
 
+        var problem = new ProblemDetails
+        {
+            Type = $"https://httpstatuses.com/{(int)statusCode}",
+            Title = title,
+            Status = (int)statusCode,
+            Detail = ex.Message,
+            Instance = context.Request.Path,
+        };
+        problem.Extensions["traceId"] = context.TraceIdentifier;
+
         context.Response.ContentType = "application/problem+json";
         context.Response.StatusCode = (int)statusCode;
 
-        var problem = new
-        {
-            type = $"https://httpstatuses.com/{(int)statusCode}",
-            title,
-            status = (int)statusCode,
-            detail = ex.Message,
-            traceId = context.TraceIdentifier,
-        };
-
-        await context.Response.WriteAsync(JsonSerializer.Serialize(problem));
+        await context.Response.WriteAsync(JsonSerializer.Serialize(problem, _jsonOptions));
     }
 }
 

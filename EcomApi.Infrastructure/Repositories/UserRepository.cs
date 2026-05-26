@@ -21,10 +21,16 @@ public class UserRepository : IUserRepository
         return user;
     }
 
-    public async Task<bool> ExistsAsync(string username, string email, CancellationToken ct = default)
+    public async Task<bool> ExistsAsync(
+        string username,
+        string email,
+        CancellationToken ct = default
+    )
     {
+        // EF.Functions.ILike uses PostgreSQL's native case-insensitive ILIKE operator,
+        // which leverages indexes instead of a full table scan with ToLower().
         return await _db.Users.AnyAsync(
-            u => u.Username.ToLower() == username.ToLower() || u.Email.ToLower() == email.ToLower(),
+            u => EF.Functions.ILike(u.Username, username) || EF.Functions.ILike(u.Email, email),
             ct
         );
     }
@@ -33,7 +39,7 @@ public class UserRepository : IUserRepository
     {
         return await _db.Users
             .AsNoTracking()
-            .FirstOrDefaultAsync(u => u.Email.ToLower() == email.ToLower(), ct);
+            .FirstOrDefaultAsync(u => EF.Functions.ILike(u.Email, email), ct);
     }
 
     public async Task<User?> GetByIdAsync(int id, CancellationToken ct = default)
@@ -45,7 +51,6 @@ public class UserRepository : IUserRepository
     {
         return await _db.Users
             .AsNoTracking()
-            .FirstOrDefaultAsync(u => u.Username.ToLower() == username.ToLower(), ct);
+            .FirstOrDefaultAsync(u => EF.Functions.ILike(u.Username, username), ct);
     }
 }
-

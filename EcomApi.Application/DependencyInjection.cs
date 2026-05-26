@@ -13,7 +13,8 @@ public static class DependencyInjection
         IConfiguration configuration
     )
     {
-        services.AddOptions<JwtOptions>()
+        services
+            .AddOptions<JwtOptions>()
             .Bind(configuration.GetSection(JwtOptions.SectionName))
             .ValidateDataAnnotations()
             .ValidateOnStart();
@@ -25,4 +26,3 @@ public static class DependencyInjection
         return services;
     }
 }
-

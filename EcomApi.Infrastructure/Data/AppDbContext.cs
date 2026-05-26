@@ -25,6 +25,10 @@ public class AppDbContext : DbContext
         // store OrderStatus as string in database
         modelBuilder.Entity<Order>().Property(o => o.Status).HasConversion<string>();
 
+        // Unique indexes for login/lookup fields
+        modelBuilder.Entity<User>().HasIndex(u => u.Username).IsUnique();
+        modelBuilder.Entity<User>().HasIndex(u => u.Email).IsUnique();
+
         // product -> category relationship
         modelBuilder
             .Entity<Product>()
@@ -56,6 +60,11 @@ public class AppDbContext : DbContext
             .WithMany(p => p.OrderItems)
             .HasForeignKey(oi => oi.ProductId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        // Explicit decimal precision for monetary columns
+        modelBuilder.Entity<Product>().Property(p => p.Price).HasColumnType("numeric(18,4)");
+        modelBuilder.Entity<Order>().Property(o => o.TotalAmount).HasColumnType("numeric(18,4)");
+        modelBuilder.Entity<OrderItem>().Property(oi => oi.UnitPrice).HasColumnType("numeric(18,4)");
 
         modelBuilder
             .Entity<Category>()

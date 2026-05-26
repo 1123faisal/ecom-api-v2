@@ -1,4 +1,3 @@
-using System;
 using EcomApi.Domain.Entities;
 using EcomApi.Domain.Interfaces;
 using EcomApi.Infrastructure.Data;
@@ -8,52 +7,59 @@ namespace EcomApi.Infrastructure.Repositories;
 
 public class ProductRepository : IProductRepository
 {
-    private AppDbContext _db;
+    private readonly AppDbContext _db;
 
     public ProductRepository(AppDbContext context)
     {
         _db = context;
     }
 
-    public async Task<Product> CreateAsync(Product product)
+    public async Task<Product> CreateAsync(Product product, CancellationToken ct = default)
     {
         _db.Products.Add(product);
-        await _db.SaveChangesAsync();
-        return await GetByIdAsync(product.Id) ?? product;
+        await _db.SaveChangesAsync(ct);
+        return await GetByIdAsync(product.Id, ct) ?? product;
     }
 
-    public async Task<bool> DeleteAsync(int id)
+    public async Task<bool> DeleteAsync(int id, CancellationToken ct = default)
     {
-        var product = await _db.Products.FindAsync(id);
+        var product = await _db.Products.FindAsync([id], ct);
         if (product == null)
             return false;
 
         _db.Products.Remove(product);
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(ct);
         return true;
     }
 
-    public async Task<List<Product>> GetAllAsync()
+    public async Task<List<Product>> GetAllAsync(CancellationToken ct = default)
     {
-        return await _db.Products.Include(p => p.Category).ToListAsync();
+        return await _db.Products
+            .AsNoTracking()
+            .Include(p => p.Category)
+            .ToListAsync(ct);
     }
 
-    public async Task<List<Product>> GetByCategoryAsync(int categoryId)
+    public async Task<List<Product>> GetByCategoryAsync(int categoryId, CancellationToken ct = default)
     {
-        return await _db
-            .Products.Include(p => p.Category)
+        return await _db.Products
+            .AsNoTracking()
+            .Include(p => p.Category)
             .Where(p => p.CategoryId == categoryId)
-            .ToListAsync();
+            .ToListAsync(ct);
     }
 
-    public async Task<Product?> GetByIdAsync(int id)
+    public async Task<Product?> GetByIdAsync(int id, CancellationToken ct = default)
     {
-        return await _db.Products.Include(p => p.Category).FirstOrDefaultAsync(p => p.Id == id);
+        return await _db.Products
+            .AsNoTracking()
+            .Include(p => p.Category)
+            .FirstOrDefaultAsync(p => p.Id == id, ct);
     }
 
-    public async Task<Product?> UpdateAsync(int id, Product updated)
+    public async Task<Product?> UpdateAsync(int id, Product updated, CancellationToken ct = default)
     {
-        var product = await _db.Products.FindAsync(id);
+        var product = await _db.Products.FindAsync([id], ct);
         if (product == null)
             return null;
 
@@ -62,18 +68,18 @@ public class ProductRepository : IProductRepository
         product.Price = updated.Price;
         product.Stock = updated.Stock;
         product.CategoryId = updated.CategoryId;
-        await _db.SaveChangesAsync();
-        return await GetByIdAsync(id);
+        await _db.SaveChangesAsync(ct);
+        return await GetByIdAsync(id, ct);
     }
 
-    public async Task<bool> UpdateStockAsync(int id, int quantity)
+    public async Task<bool> DecrementStockAsync(int id, int quantity, CancellationToken ct = default)
     {
-        var product = await _db.Products.FindAsync(id);
+        var product = await _db.Products.FindAsync([id], ct);
         if (product == null)
             return false;
 
         product.Stock -= quantity;
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(ct);
         return true;
     }
 }

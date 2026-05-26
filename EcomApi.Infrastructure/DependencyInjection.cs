@@ -1,3 +1,4 @@
+using EcomApi.Application.Abstractions;
 using EcomApi.Domain.Interfaces;
 using EcomApi.Infrastructure.Caching;
 using EcomApi.Infrastructure.Data;

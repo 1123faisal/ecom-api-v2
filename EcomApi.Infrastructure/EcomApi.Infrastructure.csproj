@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\EcomApi.Domain\EcomApi.Domain.csproj" />
+    <ProjectReference Include="..\EcomApi.Application\EcomApi.Application.csproj" />
   </ItemGroup>
 
   <ItemGroup>
